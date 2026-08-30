@@ -4,12 +4,13 @@
 
 # PdfToMd
 
-**Convert PDFs to Markdown so they cost fewer tokens as AI context.**
+**Turn PDFs into Markdown that an LLM can actually read.**
 
-A local web app and CLI. Point it at a PDF or a folder of them, and get clean
-`.md` files back — images filtered, tables converted to Markdown, scanned pages
-read by OCR. Everything runs on your machine.
+Extracts text and heading structure, converts ruled tables to Markdown, filters
+decorative images, detects two-column layouts, and OCRs pages that have no text
+layer. Local web UI and command line — nothing leaves your machine.
 
+[![CI](https://github.com/smehri/PdfToMd/actions/workflows/ci.yml/badge.svg)](https://github.com/smehri/PdfToMd/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Runs locally](https://img.shields.io/badge/Runs-100%25%20locally-green.svg)](#privacy)
