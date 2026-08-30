@@ -6,6 +6,22 @@ Notable changes to PdfToMd. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Running header and footer removal.** A line repeated near the top or bottom
+  edge of most pages is furniture, not content — the same principle already
+  applied to repeated images. On the example paper this removed 13 copies of the
+  journal's title strip.
+- **`examples/`** — a real 14-page open-access paper converted end to end, with
+  measured token figures and an honest account of what the converter handles
+  badly.
+
+### Fixed
+
+- A title that wraps onto two lines produced two `# H1` headings instead of one.
+- The filename was used as the title even when the document had its own, if a
+  metadata strip preceded it — papers led with `# paper` above their real title.
+
 ## [0.1.0] — 2026-08-30
 
 First public release.

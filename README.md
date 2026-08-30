@@ -23,10 +23,10 @@ read by OCR. Everything runs on your machine.
 ## Why
 
 Feeding a PDF to an AI assistant is expensive. Pages arrive as images, so a
-40-page report can cost tens of thousands of tokens — and tables inside it
-can't be searched or quoted, only looked at.
+40-page report can cost tens of thousands of tokens — and the text inside can't
+be searched or quoted, only looked at.
 
-Converting to Markdown first cuts that sharply:
+Converting to Markdown first changes that:
 
 | In the PDF | In the Markdown | Tokens |
 |---|---|---|
@@ -34,10 +34,17 @@ Converting to Markdown first cuts that sharply:
 | A table as a bitmap | Markdown pipes | ~1,500 → ~200 |
 | A chart or figure | `![](images/page04-01.png)` | ~1,000 → ~8 |
 | A logo on every page | dropped | ~750 → 0 |
+| A running header on every page | dropped | ~15/page → 0 |
 
 The image link is the key idea. A reference costs about 8 tokens, so you pay
 nothing upfront — and the picture is still on disk, ready to attach to a
 conversation on the one occasion a question actually needs it.
+
+**How much you save depends on the document.** On a figure-heavy report the
+difference is large. On dense prose it is modest — the text is roughly the same
+size either way, and the real gain is that it becomes searchable and quotable.
+[`examples/`](examples/) has a full 14-page paper converted, with the numbers
+measured rather than estimated, including where the converter does badly.
 
 ## Quick start
 
@@ -182,9 +189,20 @@ are dropped automatically:
 On a typical business PDF this removes most of what gets extracted. Every
 result reports how many were dropped and why, so nothing disappears silently.
 
-**Known limitation:** vector charts are drawing instructions rather than
-embedded bitmaps, so they are not extracted. Their text is still captured.
-Handling them means rendering page regions to PNG — see [issue tracker](https://github.com/smehri/PdfToMd/issues).
+## Known limitations
+
+Stated plainly, because they show up on real documents —
+[`examples/`](examples/) demonstrates each on an actual paper:
+
+- **Unruled tables are not converted.** Table detection needs ruled lines.
+  Academic tables that align with whitespace stay as text. The alternative
+  detection strategy also turns two-column prose into false tables, so it is
+  deliberately not used.
+- **Vector charts are not extracted.** They are drawing instructions rather
+  than embedded bitmaps. Their text is still captured.
+- **Figure captions run into body text** rather than attaching to a figure.
+- **Multi-column layouts** are read in block order, which is usually correct
+  but can interleave on unusual layouts.
 
 ## What the token numbers mean
 

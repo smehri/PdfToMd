@@ -145,8 +145,63 @@ def _body_font_size(doc: fitz.Document) -> float:
     return sizes.most_common(1)[0][0] if sizes else 10.0
 
 
+def _repeated_edge_lines(doc: fitz.Document, min_pages: int = 3) -> set[str]:
+    """Find running headers and footers, so they are written once, not per page.
+
+    Journal papers repeat a title strip and page number on every page. Over a
+    14-page article that is a few hundred wasted tokens, and it interrupts the
+    text mid-sentence. Same principle as the repeated-image filter: a line that
+    appears near the top or bottom edge of most pages is furniture, not content.
+    """
+    if doc.page_count < min_pages:
+        return set()
+
+    counts: Counter = Counter()
+    for page in doc:
+        height = page.rect.height or 1.0
+        try:
+            data = page.get_text("dict")
+        except Exception:
+            continue
+
+        for block in data.get("blocks", []):
+            if block.get("type") != 0:
+                continue
+            bbox = block.get("bbox")
+            if not bbox:
+                continue
+
+            # Only the top and bottom 8% of the page.
+            if not (bbox[3] < height * 0.08 or bbox[1] > height * 0.92):
+                continue
+
+            text = " ".join(
+                "".join(s.get("text", "") for s in line.get("spans", []))
+                for line in block.get("lines", [])
+            ).strip()
+            if text:
+                counts[text] += 1
+
+    threshold = max(min_pages, int(doc.page_count * 0.5))
+    repeated = {text for text, n in counts.items() if n >= threshold}
+
+    # Page numbers differ per page, so they never repeat verbatim. Catch them
+    # by shape instead: a short edge block that is mostly digits.
+    for text, n in counts.items():
+        if n >= threshold or len(text) > 12:
+            continue
+        digits = sum(c.isdigit() for c in text)
+        if digits and digits >= len(text.replace(" ", "")) * 0.6:
+            repeated.add(text)
+
+    return repeated
+
+
 def _blocks_to_markdown(
-    page: fitz.Page, body_size: float, skip_rects: list[fitz.Rect] | None = None
+    page: fitz.Page,
+    body_size: float,
+    skip_rects: list[fitz.Rect] | None = None,
+    drop_lines: set[str] | None = None,
 ) -> str:
     """Turn a page's text blocks into Markdown, inferring headings from size.
 
@@ -172,6 +227,15 @@ def _blocks_to_markdown(
             if any(centre in r for r in skip_rects):
                 continue
 
+        # Drop running headers, footers and page numbers.
+        if drop_lines:
+            block_text = " ".join(
+                "".join(s.get("text", "") for s in line.get("spans", []))
+                for line in block.get("lines", [])
+            ).strip()
+            if block_text in drop_lines:
+                continue
+
         for line in block.get("lines", []):
             spans = line.get("spans", [])
             text = "".join(s.get("text", "") for s in spans).strip()
@@ -191,10 +255,24 @@ def _blocks_to_markdown(
             else:
                 parts.append(text)
 
+    # A heading that wraps onto several lines arrives as several headings of the
+    # same level; join them back into one.
+    merged: list[str] = []
+    for part in parts:
+        if (
+            part.startswith("#")
+            and merged
+            and merged[-1].startswith("#")
+            and part.split(" ", 1)[0] == merged[-1].split(" ", 1)[0]
+        ):
+            merged[-1] = merged[-1].rstrip() + " " + part.split(" ", 1)[1]
+        else:
+            merged.append(part)
+
     # Join consecutive plain lines into paragraphs, keep headings on their own.
     out: list[str] = []
     buffer: list[str] = []
-    for part in parts:
+    for part in merged:
         if part.startswith("#"):
             if buffer:
                 out.append(" ".join(buffer))
@@ -262,6 +340,7 @@ def convert_pdf(
         # --- Pages --------------------------------------------------------
         chunks: list[str] = []
         title_written = False
+        drop_lines = _repeated_edge_lines(doc)
 
         for page_number, page in enumerate(doc, start=1):
             # Find tables first: their regions are excluded from the text pass
@@ -279,7 +358,7 @@ def convert_pdf(
                 except Exception:
                     pass  # Table detection is best-effort.
 
-            text = _blocks_to_markdown(page, body_size, table_rects)
+            text = _blocks_to_markdown(page, body_size, table_rects, drop_lines)
 
             # No text layer means a scan -- without OCR the page comes out blank.
             if ocr_enabled and len(text.strip()) < SCAN_TEXT_THRESHOLD:
@@ -301,7 +380,10 @@ def convert_pdf(
                 # open with a heading of its own -- otherwise the file gets two H1s.
                 if not title_written:
                     title_written = True
-                    if not body.startswith("# "):
+                    # Papers often lead with a metadata strip before the title,
+                    # so look for an H1 anywhere on this page, not just at the
+                    # start, before falling back to the filename.
+                    if not re.search(r"^# ", body, re.M):
                         page_parts.append(f"# {pdf_path.stem}")
 
                 page_parts.append(body)
