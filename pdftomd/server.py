@@ -24,7 +24,7 @@ import uuid
 import webbrowser
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -76,10 +76,7 @@ async def scan(payload: dict) -> JSONResponse:
         {
             "files": [
                 {"path": str(p), "name": p.name, "size": p.stat().st_size} for p in pdfs
-            ],
-            "default_output": str(
-                (target if target.is_dir() else target.parent) / "markdown"
-            ),
+            ]
         }
     )
 
@@ -102,7 +99,7 @@ async def upload(files: list[UploadFile] = File(...)) -> JSONResponse:
     if not saved:
         return JSONResponse({"error": "No PDF files in that drop."}, status_code=400)
 
-    return JSONResponse({"files": saved, "default_output": str(DEFAULT_OUTPUT)})
+    return JSONResponse({"files": saved})
 
 
 @app.post("/api/job")
@@ -177,6 +174,7 @@ async def convert_stream(job_id: str) -> StreamingResponse:
                     "tables": result.tables_found,
                     "ocr_pages": result.ocr_pages,
                     "warning": result.warning,
+                    "two_column_pages": result.two_column_pages,
                     "markdown_path": str(result.markdown_path or ""),
                 }
             )

@@ -34,14 +34,19 @@ from .images import ExtractedImage, ImageReport, extract_images, filter_images
 # A page with almost no text but a large image is a scan, not a blank page.
 SCAN_TEXT_THRESHOLD = 50
 
+# --- Column detection -----------------------------------------------------
+GUTTER_MIN_BLOCKS = 6          # too few blocks to judge a layout
+GUTTER_MIN_BLOCK_WIDTH = 0.03  # ignore slivers when looking for the gap
+GUTTER_MAX_SPAN_RATIO = 0.25   # share of blocks allowed to straddle the gutter
+GUTTER_MIN_WIDTH = 0.015       # a narrower gap is word spacing, not a gutter
+GUTTER_MIN_SIDE_RATIO = 0.15   # each column must hold this share of the text
+
 IMAGE_MODES = ("extract", "none", "embed")
 
 
 @dataclass
 class ConversionResult:
-    source: Path
     markdown_path: Path | None = None
-    image_dir: Path | None = None
     page_count: int = 0
     images_kept: int = 0
     image_report: dict = field(default_factory=dict)
@@ -49,6 +54,7 @@ class ConversionResult:
     ocr_skipped_pages: list[int] = field(default_factory=list)
     warning: str = ""
     tables_found: int = 0
+    two_column_pages: int = 0
     chars: int = 0
     error: str = ""
 
@@ -125,6 +131,48 @@ def _table_to_markdown(table) -> str:
     return "\n".join(out)
 
 
+def _find_tables(page: fitz.Page, gutter: float | None) -> list:
+    """Tables on a page. Ruled tables only, searched per column when there are two.
+
+    Only the 'lines' strategy is used, because a drawn grid is real evidence of
+    a table. PyMuPDF's whitespace strategy, which is meant to catch unruled
+    tables, does not return the table on its own -- it returns the whole column
+    with the prose above and below folded in -- so it cannot be used without
+    corrupting the text. Unruled tables are therefore left as text; see the
+    limitations in the README.
+
+    Clipping to each column still matters: a ruled table inside one column of a
+    two-column page is found more reliably when the other column is excluded.
+    """
+    found: list = []
+    seen: list[fitz.Rect] = []
+
+    if gutter is None:
+        regions = [None]  # whole page
+    else:
+        regions = [
+            fitz.Rect(page.rect.x0, page.rect.y0, gutter, page.rect.y1),
+            fitz.Rect(gutter, page.rect.y0, page.rect.x1, page.rect.y1),
+            None,  # and once page-wide, for a table that spans both columns
+        ]
+
+    for region in regions:
+        try:
+            tables = page.find_tables(strategy="lines").tables if region is None \
+                else page.find_tables(clip=region, strategy="lines").tables
+        except Exception:
+            continue
+        for table in tables:
+            rect = fitz.Rect(table.bbox)
+            # The same table surfaces from more than one pass.
+            if any(rect.intersects(s) for s in seen):
+                continue
+            seen.append(rect)
+            found.append(table)
+
+    return found
+
+
 def _body_font_size(doc: fitz.Document) -> float:
     """The most common span size across the first pages is the body text size."""
     sizes: Counter = Counter()
@@ -143,6 +191,89 @@ def _body_font_size(doc: fitz.Document) -> float:
                         sizes[round(span.get("size", 10), 1)] += len(text)
 
     return sizes.most_common(1)[0][0] if sizes else 10.0
+
+
+def _page_gutter(page: fitz.Page) -> float | None:
+    """The x of a two-column page's gutter, or None for a single column.
+
+    Looks for a vertical band in the middle of the page that text does not
+    cross. A few blocks may straddle it -- a full-width figure, a caption, a
+    displayed equation -- so a small number of crossings is tolerated, and the
+    narrowest such band wins.
+    """
+    width = page.rect.width
+    if not width:
+        return None
+
+    try:
+        data = page.get_text("dict")
+    except Exception:
+        return None
+
+    blocks = [
+        b["bbox"]
+        for b in data.get("blocks", [])
+        if b.get("type") == 0
+        and b.get("bbox")
+        and (b["bbox"][2] - b["bbox"][0]) > width * GUTTER_MIN_BLOCK_WIDTH
+    ]
+    if len(blocks) < GUTTER_MIN_BLOCKS:
+        return None
+
+    lo, hi = width * 0.35, width * 0.65
+    max_spanning = max(1, int(len(blocks) * GUTTER_MAX_SPAN_RATIO))
+
+    # Prefer the band crossed by fewest blocks, and among those the widest --
+    # the gutter is the largest clear gap, not the first sliver found.
+    best: tuple[int, float, float] | None = None
+    run_start: float | None = None
+    run_span = 0
+    x = lo
+    while x <= hi:
+        crossing = sum(1 for b in blocks if b[0] < x < b[2])
+        if crossing <= max_spanning:
+            if run_start is None:
+                run_start, run_span = x, crossing
+            run_span = max(run_span, crossing)
+            band = x - run_start
+            if band > 0:
+                # Fewer crossings wins; then a wider band.
+                candidate = (run_span, -band, run_start + band / 2)
+                if best is None or candidate < best:
+                    best = candidate
+        else:
+            run_start = None
+        x += 1.0
+
+    if best is None:
+        return None
+
+    _, negative_band, centre = best
+    band = -negative_band
+    if band < width * GUTTER_MIN_WIDTH:
+        return None
+
+    # Blocks allowed to straddle the band widen it and pull the midpoint off
+    # true. Re-centre on the real gap: the right edge of the text to its left,
+    # and the left edge of the text to its right.
+    left_edge = max((b[2] for b in blocks if b[2] <= centre), default=None)
+    right_edge = min((b[0] for b in blocks if b[0] >= centre), default=None)
+    if left_edge is not None and right_edge is not None and right_edge > left_edge:
+        centre = (left_edge + right_edge) / 2
+
+    # Both columns have to carry a real share of the text. Measure area rather
+    # than block count: a column can be one tall block or twenty short ones.
+    def area(bbox) -> float:
+        return (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+
+    left = sum(area(b) for b in blocks if b[2] <= centre)
+    right = sum(area(b) for b in blocks if b[0] >= centre)
+    if not left or not right:
+        return None
+    if min(left, right) / (left + right) < GUTTER_MIN_SIDE_RATIO:
+        return None
+
+    return centre
 
 
 def _repeated_edge_lines(doc: fitz.Document, min_pages: int = 3) -> set[str]:
@@ -294,7 +425,7 @@ def convert_pdf(
     detect_tables: bool = True,
 ) -> ConversionResult:
     """Convert one PDF to Markdown. Never raises; errors land on the result."""
-    result = ConversionResult(source=pdf_path)
+    result = ConversionResult()
 
     try:
         doc = fitz.open(pdf_path)
@@ -328,7 +459,6 @@ def convert_pdf(
                     img.filename = f"page{img.page_number:03d}-{img.index:02d}.{img.ext}"
                     (image_dir / img.filename).write_bytes(img.data)
 
-                result.image_dir = image_dir
 
         result.images_kept = len(kept)
         result.image_report = report.as_dict()
@@ -345,11 +475,15 @@ def convert_pdf(
         for page_number, page in enumerate(doc, start=1):
             # Find tables first: their regions are excluded from the text pass
             # so the same content is not emitted twice.
+            gutter = _page_gutter(page)
+            if gutter is not None:
+                result.two_column_pages += 1
+
             page_tables: list[str] = []
             table_rects: list[fitz.Rect] = []
             if detect_tables:
                 try:
-                    for table in page.find_tables().tables:
+                    for table in _find_tables(page, gutter):
                         md_table = _table_to_markdown(table)
                         if md_table:
                             page_tables.append(md_table)

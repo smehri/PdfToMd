@@ -93,8 +93,9 @@ the Start Menu, or `-Remove` to take the shortcuts away.
 python scripts/make_test_pdfs.py
 ```
 
-Creates `test-pdfs/` with three samples — a normal document, one with a table,
-and a scanned one — so you can see all three code paths work.
+Creates `test-pdfs/` with four samples — a plain document, one with a ruled
+table, a scanned one with no text layer, and a two-column page — covering every
+code path.
 
 ## OCR (optional)
 
@@ -194,15 +195,18 @@ result reports how many were dropped and why, so nothing disappears silently.
 Stated plainly, because they show up on real documents —
 [`examples/`](examples/) demonstrates each on an actual paper:
 
-- **Unruled tables are not converted.** Table detection needs ruled lines.
-  Academic tables that align with whitespace stay as text. The alternative
-  detection strategy also turns two-column prose into false tables, so it is
-  deliberately not used.
+- **Unruled tables are not converted.** Detection needs drawn lines. Tables
+  aligned only by whitespace stay as text. PyMuPDF's alternative strategy
+  cannot isolate them either -- it returns the whole column, prose included --
+  so using it would corrupt the text rather than add a table.
+- **A table drawn as vector graphics** has no text to extract at all, so it is
+  kept as an image reference. The example paper's Table 1 is one of these.
 - **Vector charts are not extracted.** They are drawing instructions rather
   than embedded bitmaps. Their text is still captured.
 - **Figure captions run into body text** rather than attaching to a figure.
-- **Multi-column layouts** are read in block order, which is usually correct
-  but can interleave on unusual layouts.
+- **Multi-column layouts** are detected, and each column is searched for
+  tables separately. Text is still read in block order, which is correct for
+  ordinary two-column papers.
 
 ## What the token numbers mean
 

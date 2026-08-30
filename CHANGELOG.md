@@ -8,6 +8,10 @@ Notable changes to PdfToMd. Format follows
 
 ### Added
 
+- **Two-column layout detection.** Pages are checked for a gutter -- a vertical
+  band the text does not cross -- and each column is then searched for tables
+  separately, which is more reliable than searching the page as a whole. The
+  count of two-column pages is reported per file.
 - **Running header and footer removal.** A line repeated near the top or bottom
   edge of most pages is furniture, not content — the same principle already
   applied to repeated images. On the example paper this removed 13 copies of the
@@ -15,6 +19,12 @@ Notable changes to PdfToMd. Format follows
 - **`examples/`** — a real 14-page open-access paper converted end to end, with
   measured token figures and an honest account of what the converter handles
   badly.
+
+### Changed
+
+- The output folder is no longer pre-filled with a path from the machine. The
+  field starts empty and falls back to `./output`.
+- The interface was rebuilt to fit a single screen without scrolling.
 
 ### Fixed
 

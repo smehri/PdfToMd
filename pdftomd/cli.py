@@ -72,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
                 bits.append(f"{result.tables_found} tables")
             if result.ocr_pages:
                 bits.append(f"OCR on {len(result.ocr_pages)} pages")
+            if result.two_column_pages:
+                bits.append(f"{result.two_column_pages} two-column")
             print(f"  [{i}/{len(pdfs)}] {pdf.name} -> {', '.join(bits)}")
             if result.warning:
                 print(f"        warning: {result.warning}")

@@ -74,6 +74,11 @@ jobs:
           if not (out / "sample-text-images" / "page001-01.png").exists():
               failures.append("sample-text: image was not extracted")
 
+          # Two-column prose must never be mistaken for a table.
+          check("sample-2col.md",
+                must_contain=["Ordinary running text fills the left column"],
+                must_not_contain=["| --- |"])
+
           # Only Linux installs Tesseract, so only assert OCR text there.
           scan = (out / "sample-scan.md").read_text(encoding="utf-8")
           if "${{ runner.os }}" == "Linux":

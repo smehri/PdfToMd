@@ -108,7 +108,6 @@ dz.addEventListener("click", () => $("fileInput").click());
 dz.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileInput").click(); }
 });
-$("browseBtn").addEventListener("click", (e) => { e.stopPropagation(); $("fileInput").click(); });
 $("fileInput").addEventListener("change", (e) => {
   uploadFiles([...e.target.files]);
   e.target.value = "";
@@ -126,7 +125,6 @@ async function uploadFiles(fileObjs) {
     const data = await res.json();
     if (!res.ok) return toast(data.error || "Upload failed.");
     addFiles(data.files);
-    if (!$("outputInput").value) $("outputInput").value = data.default_output;
     toast(`Added ${data.files.length} file${data.files.length > 1 ? "s" : ""}.`);
   } catch {
     toast("Upload failed.");
@@ -152,7 +150,6 @@ async function scanPath() {
     const data = await res.json();
     if (!res.ok) return toast(data.error || "Scan failed.");
     addFiles(data.files);
-    if (!$("outputInput").value) $("outputInput").value = data.default_output;
     toast(`Found ${data.files.length} PDF${data.files.length > 1 ? "s" : ""}.`);
   } catch {
     toast("Scan failed.");
@@ -211,6 +208,7 @@ async function convert() {
     const msg = JSON.parse(ev.data);
 
     if (msg.type === "start") {
+      $("progressCount").hidden = false;
       $("progressCount").textContent = `0 / ${msg.total}`;
     } else if (msg.type === "file_start") {
       $("currentFile").textContent = msg.name;
@@ -244,7 +242,6 @@ function finish(totals, msg) {
   $("convertBtn").querySelector(".btn-label").textContent = "Convert";
   renderFiles();
 
-  $("progressLabel").textContent = "Done";
   $("currentFile").textContent = `Saved to ${msg.output}`;
 
   $("statFiles").textContent = totals.files;
@@ -339,19 +336,25 @@ $("copyBtn").addEventListener("click", async () => {
 /* ---------------- OCR availability ---------------- */
 /* Checked up front so a missing engine is visible before a run, not after. */
 (async () => {
+  const pill = $("ocrPill");
   try {
     const res = await fetch("/api/status");
     const { ocr } = await res.json();
-    const note = $("ocrNote");
     if (ocr.available) {
-      note.textContent = `pages with no text layer — Tesseract ${ocr.version} ready`;
+      pill.textContent = "OCR ready";
+      pill.classList.add("ready");
+      pill.title = `Tesseract ${ocr.version}`;
+      $("ocrNote").textContent = "for pages with no text layer";
     } else {
-      note.textContent = "unavailable — " + ocr.error;
-      note.style.color = "var(--err)";
+      pill.textContent = "OCR off";
+      pill.classList.add("off");
+      pill.title = ocr.error;
+      $("ocrNote").textContent = "Tesseract not found — scanned pages stay as images";
       $("ocr").checked = false;
     }
   } catch {
     /* Status is advisory; conversion still works without it. */
+    pill.hidden = true;
   }
 })();
 

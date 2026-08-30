@@ -14,9 +14,10 @@ pip install -r requirements.txt
 python scripts/make_test_pdfs.py
 ```
 
-That last command creates `test-pdfs/` with three fixtures — a text document
-with an embedded figure and a decorative icon, one with a ruled table, and a
-scanned page with no text layer. Between them they cover every code path.
+That last command creates `test-pdfs/` with four fixtures — a text document
+with an embedded figure and a decorative icon, one with a ruled table, a scanned
+page with no text layer, and a two-column page with an unruled table. Between
+them they cover every code path.
 
 ## Checking a change
 
@@ -35,6 +36,7 @@ What each fixture should show:
 | `sample-text` | one `# Quarterly Report` heading, the 16×16 icon filtered out, the figure linked |
 | `sample-table` | a Markdown pipe table, and the same rows **not** repeated as loose text |
 | `sample-scan` | OCR text (`SCANNED INVOICE 4471`), or a warning if Tesseract is missing |
+| `sample-2col` | clean prose from both columns and **no** table — the unruled table stays text, and two-column prose must never become a false table |
 
 Then check the UI end to end — `python -m pdftomd`, scan the `test-pdfs`
 folder, convert, open a preview.
@@ -57,13 +59,15 @@ The code aims to read like one person wrote it:
 
 ## Areas that would help
 
-- **Vector graphics.** Charts drawn as PDF instructions are not extracted.
-  Rendering the page region to PNG would fix this and is the most-wanted gap.
+- **Vector graphics.** Charts drawn as PDF instructions are not extracted, and
+  neither are tables drawn that way. Rendering the page region to PNG would fix
+  both and is the most-wanted gap.
+- **Unruled tables.** PyMuPDF's whitespace strategy returns the whole column
+  rather than the table, so it cannot be used as-is. Isolating the tabular rows
+  by their own alignment would be the way in.
 - **A real test suite.** `pytest` over the fixtures, asserting the table above.
 - **Better token estimates.** The current figure is `chars / 4`, which
   under-counts tables and non-Latin scripts. A real tokenizer would be exact.
-- **Multi-column layouts.** Text is read in block order, which interleaves
-  columns on academic papers.
 - **Non-English OCR.** Tesseract takes a `lang` parameter that is not yet
   exposed.
 

@@ -53,3 +53,6 @@ desktop.ini
 
 # Generated test fixtures (recreate with scripts/make_test_pdfs.py)
 test-pdfs/
+
+# Ad-hoc conversion output from manual testing
+out-*/
