@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest something PdfToMd should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before writing, it is worth checking the "Areas that would help" section
+        of [CONTRIBUTING.md](https://github.com/smehri/PdfToMd/blob/main/CONTRIBUTING.md)
+        — the known gaps are listed there, including vector graphics, multi-column
+        layouts, and non-English OCR.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: >
+        Describe the situation rather than the solution. What kind of PDF, and
+        what goes wrong or is missing today?
+      placeholder: |
+        My PDFs are Persian, and OCR reads them as garbage because Tesseract
+        defaults to English.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+      placeholder: |
+        A language setting in the UI, passed through to Tesseract as --lang.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you have tried or considered

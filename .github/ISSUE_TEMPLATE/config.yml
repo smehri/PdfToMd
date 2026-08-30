@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about using PdfToMd
+    url: https://github.com/smehri/PdfToMd/discussions
+    about: Ask here rather than opening an issue.
+  - name: Licensing (why is this AGPL?)
+    url: https://github.com/smehri/PdfToMd/blob/main/NOTICE.md
+    about: NOTICE.md explains the AGPL requirement and how to build a permissive version.

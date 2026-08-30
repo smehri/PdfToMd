@@ -1,0 +1,85 @@
+name: Bug report
+description: Something converted wrong, or the app did not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. If it is about one specific PDF, the single most
+        useful thing you can attach is that PDF — or a page of it that still
+        shows the problem.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you get instead?
+      placeholder: |
+        The table on page 3 came out as loose text instead of a Markdown table.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Scanned the folder C:\docs\reports
+        2. Left the settings at their defaults
+        3. Clicked Convert
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: The Markdown you got
+      description: >
+        Paste the relevant part of the .md file, or the CLI output. This is
+        automatically formatted as code — no backticks needed.
+      render: markdown
+
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How were you running it?
+      options:
+        - Web UI (python -m pdftomd)
+        - Web UI (desktop icon)
+        - Command line (python -m pdftomd.cli)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 / macOS 14 / Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: "Output of: python --version"
+      placeholder: Python 3.12.10
+    validations:
+      required: true
+
+  - type: input
+    id: tesseract
+    attributes:
+      label: OCR status
+      description: >
+        What the UI shows under "OCR scanned pages", or "not installed".
+      placeholder: Tesseract 5.4.0.20240606 ready
+
+  - type: textarea
+    id: pdf
+    attributes:
+      label: The PDF, if you can share it
+      description: >
+        Drag the file into this box to attach it. If it is confidential, a
+        description of the layout helps — number of columns, whether tables are
+        ruled, whether the pages are scanned.

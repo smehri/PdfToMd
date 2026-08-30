@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    name: Convert fixtures (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Only on Linux: the Windows runner would need a slower installer, and one
+      # OS proving the OCR path is enough.
+      - name: Install Tesseract
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+
+      - name: Generate fixtures
+        run: python scripts/make_test_pdfs.py
+
+      - name: Convert
+        run: python -m pdftomd.cli test-pdfs -o output
+
+      - name: Check the output is correct
+        shell: python
+        run: |
+          import pathlib, sys
+
+          out = pathlib.Path("output")
+          failures = []
+
+          def check(name, must_contain=(), must_not_contain=()):
+              path = out / name
+              if not path.exists():
+                  failures.append(f"{name}: not written")
+                  return
+              text = path.read_text(encoding="utf-8")
+              for needle in must_contain:
+                  if needle not in text:
+                      failures.append(f"{name}: missing {needle!r}")
+              for needle in must_not_contain:
+                  if needle in text:
+                      failures.append(f"{name}: unexpectedly contains {needle!r}")
+
+          # Headings are inferred, the figure is linked, the 16x16 icon is filtered.
+          check("sample-text.md",
+                must_contain=["# Quarterly Report", "## Revenue Overview",
+                              "sample-text-images/page001-01.png"])
+
+          # The table is pipes, and its rows are not also loose text -- that
+          # duplication was a real bug and would double the token cost.
+          check("sample-table.md",
+                must_contain=["| Region | Q1 | Q2 | Q3 |", "| North | 1,200 |"],
+                must_not_contain=["North 1,200 1,450"])
+
+          if not (out / "sample-text-images" / "page001-01.png").exists():
+              failures.append("sample-text: image was not extracted")
+
+          # Only Linux installs Tesseract, so only assert OCR text there.
+          scan = (out / "sample-scan.md").read_text(encoding="utf-8")
+          if "${{ runner.os }}" == "Linux":
+              if "SCANNED INVOICE" not in scan:
+                  failures.append(f"sample-scan: OCR did not run. Got:\n{scan}")
+          elif "sample-scan-images" not in scan:
+              failures.append("sample-scan: image was not extracted")
+
+          if failures:
+              print("FAILED:")
+              for f in failures:
+                  print(" -", f)
+              sys.exit(1)
+          print("All conversion checks passed.")
+
+      - name: Check the other image modes run
+        run: |
+          python -m pdftomd.cli test-pdfs/sample-text.pdf -o out-none --images none
+          python -m pdftomd.cli test-pdfs/sample-text.pdf -o out-embed --images embed
+
+      - name: Check the server starts and serves
+        shell: python
+        run: |
+          import socket, subprocess, sys, time, urllib.request
+
+          proc = subprocess.Popen(
+              [sys.executable, "-m", "uvicorn", "pdftomd.server:app",
+               "--host", "127.0.0.1", "--port", "8765", "--log-level", "warning"]
+          )
+          try:
+              for _ in range(100):  # up to ~20s
+                  with socket.socket() as s:
+                      s.settimeout(0.5)
+                      if s.connect_ex(("127.0.0.1", 8765)) == 0:
+                          break
+                  time.sleep(0.2)
+              else:
+                  sys.exit("server never started listening")
+
+              for path in ("/", "/static/app.js", "/api/status"):
+                  with urllib.request.urlopen(f"http://127.0.0.1:8765{path}", timeout=10) as r:
+                      if r.status != 200:
+                          sys.exit(f"{path} returned {r.status}")
+                      print(f"{path} -> {r.status}")
+              print("Server checks passed.")
+          finally:
+              proc.terminate()
+
+  lint:
+    name: Byte-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check every module compiles
+        run: python -m compileall -q pdftomd scripts
