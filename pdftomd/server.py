@@ -4,8 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
+import socket
+import sys
 import tempfile
+import threading
+import time
+import traceback
 import uuid
 import webbrowser
 from pathlib import Path
@@ -202,20 +208,82 @@ def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload)}\n\n"
 
 
-def main() -> None:
-    import uvicorn
+def _port_is_busy(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.4)
+        return probe.connect_ex((host, port)) == 0
 
-    host, port = "127.0.0.1", 8765
-    url = f"http://{host}:{port}"
-    print(f"\n  PdfToMd running at {url}\n  Press Ctrl+C to stop.\n")
 
-    # Open the browser once the server is about to accept connections.
+def _alert(message: str, title: str = "PdfToMd") -> None:
+    """Report a failure even when launched from the icon, which has no console."""
+    print(message)
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(0, message, title, 0x30)  # MB_ICONWARNING
+        except Exception:
+            pass
+
+
+def _open_when_ready(url: str, host: str, port: int) -> None:
+    """Open the browser only once the server accepts connections."""
+    for _ in range(100):  # up to ~10s
+        if _port_is_busy(host, port):
+            break
+        time.sleep(0.1)
     try:
         webbrowser.open(url)
     except Exception:
         pass
 
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+
+def _ensure_streams() -> None:
+    """Give stdout/stderr real objects when running under pythonw.exe.
+
+    A windowed process has no console, so these are None -- and uvicorn's log
+    formatter calls sys.stdout.isatty() while configuring itself, which would
+    otherwise take the server down before it binds.
+    """
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+
+
+def main() -> None:
+    _ensure_streams()
+
+    import uvicorn
+
+    host, port = "127.0.0.1", 8765
+    url = f"http://{host}:{port}"
+
+    # An instance may already be running -- from the icon, that is invisible, so
+    # just surface the existing one instead of failing on a bound port.
+    if _port_is_busy(host, port):
+        _alert(f"PdfToMd is already running.\n\nOpening {url}")
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+        return
+
+    print(f"\n  PdfToMd running at {url}\n  Press Ctrl+C to stop.\n")
+    threading.Thread(target=_open_when_ready, args=(url, host, port), daemon=True).start()
+
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    except KeyboardInterrupt:
+        pass
+    except Exception as exc:
+        # Launched from the icon there is no console, so write the detail to a
+        # log file and say where it went.
+        log = Path(tempfile.gettempdir()) / "pdftomd-error.log"
+        try:
+            log.write_text(traceback.format_exc(), encoding="utf-8")
+        except Exception:
+            pass
+        _alert(f"PdfToMd could not start.\n\n{exc}\n\nDetails: {log}")
 
 
 if __name__ == "__main__":

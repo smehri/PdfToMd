@@ -46,6 +46,8 @@ shows whether OCR is ready before you convert.
 
 ## Run the web UI
 
+Either double-click the icon (see below), or from a terminal:
+
 ```bash
 python -m pdftomd
 ```
@@ -53,6 +55,27 @@ python -m pdftomd
 That starts a local server on <http://127.0.0.1:8765> and opens a browser tab.
 Drag PDFs in, or type a folder path and press **Scan**. Nothing leaves the
 machine.
+
+Stop it with Ctrl+C, or by closing the `pythonw.exe` process when it was started
+from the icon.
+
+## Desktop icon (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut.ps1
+```
+
+That puts a **PdfToMd** shortcut on the desktop. Add `-StartMenu` to also list it
+in the Start Menu, or `-Remove` to take the shortcuts away again.
+
+Double-clicking it starts the server with no console window and opens the
+browser once the server is actually listening. Launching it a second time does
+not fail on the bound port — it just opens the tab again. If startup does fail,
+a message box points at `%TEMP%\pdftomd-error.log`.
+
+The shortcut runs [`PdfToMd.vbs`](PdfToMd.vbs), which resolves paths relative to
+itself, so the project folder can be moved or renamed — just re-run the script
+above to repoint the shortcut.
 
 ## Run the CLI
 
@@ -116,6 +139,11 @@ were affected — rather than quietly producing a blank document.
 ## Layout
 
 ```
+PdfToMd.vbs    double-click launcher (no console window)
+assets/        app.ico
+scripts/
+  install_shortcut.ps1   creates the desktop / Start Menu shortcut
+  make_test_pdfs.py      generates sample PDFs to try it on
 pdftomd/
   convert.py   PDF -> Markdown: text, headings, tables, OCR
   images.py    extraction and the filtering heuristics
