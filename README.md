@@ -151,13 +151,13 @@ They differ only in where the image data ends up — and that decides the cost.
 |---|---|---|
 | **Extract & link** (default) | `![](report-images/page004-01.png)` | 564 bytes |
 | **Strip** | nothing | 507 bytes |
-| **Embed** | `![](data:image/png;base64,iVBOR...)` | **41,205 bytes** |
+| **Embed** | `![](data:image/png;base64,iVBOR...)` | **43,105 bytes** |
 
 **Use Extract & link.** It is the only option that is both cheap and lossless.
 
 *Strip* saves a rounding error over linking — because a link was already nearly
 free — while permanently discarding the pictures. *Embed* makes one portable
-file, but at **73× the size** for identical content, and base64 tokenizes badly
+file, but at **76× the size** for identical content, and base64 tokenizes badly
 (~2–3 characters per token), so the token cost is worse still. Embed is useful
 for archiving or email; it is the wrong choice for AI context.
 
