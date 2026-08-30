@@ -1,0 +1,13 @@
+# PDF parsing, text + image extraction, page rendering
+PyMuPDF==1.24.10
+
+# Image filtering heuristics (size, colour depth, hashing)
+Pillow==10.4.0
+
+# OCR for scanned / image-only pages
+pytesseract==0.3.13
+
+# Web UI
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9

@@ -1,0 +1,55 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-log.txt
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Testing / coverage ----
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ---- App data ----
+# Converted output and uploaded PDFs stay local
+output/
+outputs/
+uploads/
+*.md.bak
+pdftomd/static/preview/
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+
+# Generated test fixtures (recreate with scripts/make_test_pdfs.py)
+test-pdfs/
